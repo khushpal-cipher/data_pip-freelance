@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: syncguard
+    env: docker
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: syncguard-db
+          property: connectionString
+      - key: SHOPIFY_WEBHOOK_SECRET
+        sync: false
+      - key: SHOPIFY_STORE_DOMAIN
+        sync: false
+      - key: SHOPIFY_ADMIN_TOKEN
+        sync: false
+      - key: QBO_CLIENT_ID
+        sync: false
+      - key: QBO_CLIENT_SECRET
+        sync: false
+      - key: QBO_REALM_ID
+        sync: false
+      - key: QBO_REFRESH_TOKEN
+        sync: false
+      - key: QBO_ENVIRONMENT
+        value: sandbox
+      - key: QBO_INCOME_ACCOUNT_ID
+        sync: false
+      - key: QBO_FEE_ACCOUNT_ID
+        sync: false
+      - key: QBO_CLEARING_ACCOUNT_ID
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: ENVIRONMENT
+        value: production
+
+databases:
+  - name: syncguard-db
+    plan: free

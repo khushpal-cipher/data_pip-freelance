@@ -1,0 +1,63 @@
+DataPipe-Monitor — SLA freshness + volume anomaly detection
+Live run against a real database. No network calls.
+
+──────────────────────────────────────────────────────────────────────────────
+SCENE 1 — Two sources register their SLA
+Each declares how often it should deliver and how late is too late.
+
+  shopify_orders         every   15m   SLA 45m
+  crm_contacts           every   60m   SLA 180m
+
+──────────────────────────────────────────────────────────────────────────────
+SCENE 2 — Eight days of normal deliveries
+Both pipelines run on schedule. This is the baseline every check compares to.
+
+  shopify_orders         healthy  last record    10m ago   open: -
+  crm_contacts           healthy  last record    30m ago   open: -
+
+──────────────────────────────────────────────────────────────────────────────
+SCENE 3 — shopify_orders stops delivering
+60 minutes of silence against a 45-minute SLA. One alert, not a storm:
+
+  shopify_orders         stale    last record    70m ago   open: stale_data
+  crm_contacts           healthy  last record    90m ago   open: -
+
+  4 check passes while breaching -> 1 open alert
+  "last record 70m ago, SLA is 45m (expected every 15m)"
+
+──────────────────────────────────────────────────────────────────────────────
+SCENE 4 — Still nothing, two hours later
+Past 2x the SLA a source isn't late, it's down. Status escalates on its own.
+
+  shopify_orders         failing  last record   150m ago   open: stale_data
+  crm_contacts           healthy  last record   170m ago   open: -
+
+──────────────────────────────────────────────────────────────────────────────
+SCENE 5 — The backfill lands
+Recovery closes the alert without anyone clicking anything.
+
+  shopify_orders         healthy  last record     0m ago   open: -
+  crm_contacts           healthy  last record   171m ago   open: -
+
+  alerts auto-resolved: 1
+
+──────────────────────────────────────────────────────────────────────────────
+SCENE 6 — The silent failure — crm_contacts keeps its heartbeat
+An upstream filter breaks. The job still runs on time, it just writes almost
+nothing. Freshness sees a healthy source; the volume check sees the truth.
+
+  freshness says:  healthy  (delivered on the hour, every hour — nothing to see)
+  volume says:     46 rows in 24h vs 249/day baseline -> 81% down
+
+  alert raised:    "volume down 81% — 46 rows in 24h vs 249/day over the last 7 days"
+
+──────────────────────────────────────────────────────────────────────────────
+FINAL STATE
+
+  shopify_orders         healthy  last record     0m ago   open: -
+  crm_contacts           healthy  last record     0m ago   open: volume_drop
+
+  2 alert(s) total, 1 resolved, 1 open
+
+Every assertion above passed.
+

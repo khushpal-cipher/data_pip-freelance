@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+psycopg2-binary
+httpx
+python-dotenv
+sentry-sdk
+email-validator
+pytest
+playwright  # browser e2e click-through (tests/e2e_clickthrough.py)

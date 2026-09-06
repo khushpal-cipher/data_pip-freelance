@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DataPipe-Monitor</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+<style>
+  :root {
+    --ink: #141413;
+    --paper: #faf9f5;
+    --accent: #d97757;
+    --line: #e5e2d9;
+    --muted: #6b6862;
+    --healthy: #4a7c59;
+    --stale: #c9922f;
+    --failing: #b8443a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Lora', Georgia, serif;
+    font-size: 15px;
+  }
+  h1, h2, h3, .num { font-family: 'Poppins', system-ui, sans-serif; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 40px 24px 72px; }
+  header { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 20px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.4px; }
+  .sub { color: var(--muted); margin: 0; font-size: 14px; }
+  .summary { display: flex; gap: 26px; align-items: flex-end; }
+  .stat .num { font-size: 26px; line-height: 1; }
+  .stat .lbl { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.7px; }
+  button {
+    font-family: 'Poppins', sans-serif; font-size: 13px; cursor: pointer;
+    background: var(--accent); color: #fff; border: 0; border-radius: 6px; padding: 10px 16px;
+  }
+  button:hover { filter: brightness(0.94); }
+  button:disabled { opacity: 0.55; cursor: default; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; margin-top: 24px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 18px; border-left: 4px solid var(--line); }
+  .card.healthy { border-left-color: var(--healthy); }
+  .card.stale   { border-left-color: var(--stale); }
+  .card.failing { border-left-color: var(--failing); }
+  .card h3 { margin: 0; font-size: 16px; }
+  .row { display: flex; justify-content: space-between; align-items: center; }
+  .pill { font-family: 'Poppins', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; padding: 3px 9px; border-radius: 999px; color: #fff; }
+  .pill.healthy { background: var(--healthy); }
+  .pill.stale   { background: var(--stale); }
+  .pill.failing { background: var(--failing); }
+  .meta { color: var(--muted); font-size: 13px; margin: 10px 0 2px; display: flex; justify-content: space-between; }
+  .meta b { color: var(--ink); font-weight: 500; }
+  .breach b { color: var(--failing); }
+  .flags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .flag { font-family: 'Poppins', sans-serif; font-size: 11px; background: #f6ece7; color: #a5482a; border: 1px solid #eed6cb; border-radius: 4px; padding: 2px 7px; }
+  h2 { font-size: 18px; margin: 40px 0 12px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th { font-family: 'Poppins', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted); text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  .tag { font-family: 'Poppins', sans-serif; font-size: 11px; padding: 2px 7px; border-radius: 4px; }
+  .tag.open { background: #fbeae6; color: #a5482a; }
+  .tag.resolved { background: #eaf0ea; color: var(--healthy); }
+  .empty { color: var(--muted); padding: 22px; text-align: center; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+const { ResponsiveContainer, AreaChart, Area, Tooltip, YAxis } = Recharts;
+
+const fmtAge = (m) => {
+  if (m === null || m === undefined) return "never";
+  if (m < 60) return `${Math.round(m)}m ago`;
+  if (m < 1440) return `${(m / 60).toFixed(1)}h ago`;
+  return `${(m / 1440).toFixed(1)}d ago`;
+};
+const fmtTime = (t) => (t ? new Date(t + "Z").toLocaleTimeString() : "—");
+const LABELS = { stale_data: "stale data", volume_drop: "volume drop" };
+
+function Sparkline({ data, status }) {
+  const stroke = status === "healthy" ? "#4a7c59" : status === "stale" ? "#c9922f" : "#b8443a";
+  return (
+    <div style={{ height: 64, marginTop: 12 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+          <YAxis hide domain={[0, "dataMax"]} />
+          <Tooltip
+            contentStyle={{ fontFamily: "Poppins, sans-serif", fontSize: 12, borderRadius: 6, border: "1px solid #e5e2d9" }}
+            labelFormatter={(d) => d}
+            formatter={(v) => [`${v} rows`, ""]}
+          />
+          <Area type="monotone" dataKey="rows" stroke={stroke} strokeWidth={2} fill={stroke} fillOpacity={0.13} isAnimationActive={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function SourceCard({ s }) {
+  const breaching = s.age_minutes !== null && s.age_minutes > s.max_staleness_minutes;
+  return (
+    <div className={`card ${s.status}`}>
+      <div className="row">
+        <h3>{s.name}</h3>
+        <span className={`pill ${s.status}`}>{s.status}</span>
+      </div>
+      <div className={`meta ${breaching ? "breach" : ""}`}>
+        <span>last record</span>
+        <b>{fmtAge(s.age_minutes)}</b>
+      </div>
+      <div className="meta">
+        <span>staleness SLA</span>
+        <b>{s.max_staleness_minutes}m · every {s.expected_interval_minutes}m</b>
+      </div>
+      <div className="meta">
+        <span>rows (24h)</span>
+        <b>
+          {s.rows_24h.toLocaleString()} vs {Math.round(s.baseline_per_day).toLocaleString()}/day
+          {s.volume_drop_pct > 0 ? ` · −${s.volume_drop_pct}%` : ""}
+        </b>
+      </div>
+      <Sparkline data={s.sparkline} status={s.status} />
+      <div className="flags">
+        {s.open_alerts.map((a) => <span className="flag" key={a}>{LABELS[a] || a}</span>)}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [health, setHealth] = useState(null);
+  const [alerts, setAlerts] = useState([]);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    const [h, a] = await Promise.all([
+      fetch("/health").then((r) => r.json()),
+      fetch("/alerts").then((r) => r.json()),
+    ]);
+    setHealth(h);
+    setAlerts(a);
+  }, []);
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 15000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const runChecks = async () => {
+    setBusy(true);
+    await fetch("/checks/run", { method: "POST" });
+    await load();
+    setBusy(false);
+  };
+
+  if (!health) return <div className="wrap"><p className="sub">Loading…</p></div>;
+  const { summary, sources } = health;
+
+  return (
+    <div className="wrap">
+      <header>
+        <div>
+          <h1>DataPipe-Monitor</h1>
+          <p className="sub">
+            SLA freshness and volume anomalies across {sources.length} pipelines ·
+            checked {fmtTime(health.checked_at)}
+          </p>
+        </div>
+        <div className="summary">
+          <div className="stat"><div className="num" style={{ color: "var(--healthy)" }}>{summary.healthy}</div><div className="lbl">healthy</div></div>
+          <div className="stat"><div className="num" style={{ color: "var(--stale)" }}>{summary.stale}</div><div className="lbl">stale</div></div>
+          <div className="stat"><div className="num" style={{ color: "var(--failing)" }}>{summary.failing}</div><div className="lbl">failing</div></div>
+          <div className="stat"><div className="num">{summary.open_alerts}</div><div className="lbl">open alerts</div></div>
+          <button onClick={runChecks} disabled={busy}>{busy ? "Checking…" : "Run checks now"}</button>
+        </div>
+      </header>
+
+      <div className="grid">
+        {sources.map((s) => <SourceCard key={s.id} s={s} />)}
+      </div>
+
+      <h2>Alerts</h2>
+      {alerts.length === 0 ? (
+        <div className="empty">No alerts raised yet.</div>
+      ) : (
+        <table>
+          <thead>
+            <tr><th>Source</th><th>Type</th><th>Message</th><th>Raised</th><th>State</th></tr>
+          </thead>
+          <tbody>
+            {alerts.map((a) => (
+              <tr key={a.id}>
+                <td>{a.source_name}</td>
+                <td>{LABELS[a.type] || a.type}</td>
+                <td>{a.message}</td>
+                <td>{fmtTime(a.created_at)}</td>
+                <td><span className={`tag ${a.resolved ? "resolved" : "open"}`}>{a.resolved ? "resolved" : "open"}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

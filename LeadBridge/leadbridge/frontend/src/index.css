@@ -1,0 +1,251 @@
+:root {
+  color-scheme: light;
+  --text: #141413;
+  --bg: #faf9f5;
+  --accent: #d97757;
+  --border: #e5e2d9;
+  --muted: #6b6a64;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Lora', Georgia, serif;
+}
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+.header h1 {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+  font-size: 2rem;
+  margin: 0 0 0.35rem;
+}
+
+.subtitle {
+  color: var(--muted);
+  margin: 0 0 2rem;
+  font-size: 1.05rem;
+}
+
+.filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  align-items: center;
+}
+
+.filter-btn {
+  font-family: 'Lora', serif;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--text);
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+  text-transform: capitalize;
+  font-size: 0.9rem;
+}
+
+.filter-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.refresh-btn {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  background: white;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: 'Lora', serif;
+  font-size: 0.9rem;
+}
+
+.error-banner {
+  background: #fdeceb;
+  color: #a3392a;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.leads-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.leads-table th,
+.leads-table td {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.leads-table th {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.leads-table tr:last-child td {
+  border-bottom: none;
+}
+
+.error-cell {
+  color: #a3392a;
+  max-width: 260px;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--muted);
+  padding: 2rem !important;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  text-transform: capitalize;
+}
+
+.badge-failed {
+  background: #fdeceb;
+  color: #a3392a;
+}
+
+.badge-delivered {
+  background: #e6f4ea;
+  color: #1e7a3c;
+}
+
+.badge-received {
+  background: #eef1fb;
+  color: #3457d5;
+}
+
+.replay-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 0.35rem 0.85rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: 'Lora', serif;
+  font-size: 0.85rem;
+}
+
+.replay-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.crm-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+}
+
+.crm-banner.down {
+  background: #fdeceb;
+  color: #a3392a;
+  border-color: #f3cfc9;
+}
+
+.crm-banner.up {
+  background: #e6f4ea;
+  color: #1e7a3c;
+  border-color: #c9e4d2;
+}
+
+.toggle-btn {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  padding: 0.3rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: 'Lora', serif;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.lead-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.lead-form input {
+  flex: 1;
+  min-width: 180px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: 'Lora', serif;
+  font-size: 0.9rem;
+  background: white;
+  color: var(--text);
+}
+
+.lead-form input.honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.lead-form button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 0.5rem 1.1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: 'Lora', serif;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.lead-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.notice-banner {
+  background: #eef1fb;
+  color: #2c46a8;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}

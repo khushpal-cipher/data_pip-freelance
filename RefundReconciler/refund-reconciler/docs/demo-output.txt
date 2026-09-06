@@ -1,0 +1,78 @@
+RefundReconciler — Stripe/Shopify → QuickBooks Online refund sync
+Live run against a real SQLite ledger, Celery in eager mode, and a stubbed QuickBooks. No network calls.
+
+──────────────────────────────────────────────────────────────────────────────
+SCENE 1 — Duplicate webhook storm
+Stripe resends a webhook on any slow or non-200 response.
+
+  delivery 1: HTTP 200  already_queued=False
+  delivery 2: HTTP 200  already_queued=True
+  delivery 3: HTTP 200  already_queued=True
+  delivery 4: HTTP 200  already_queued=True
+  delivery 5: HTTP 200  already_queued=True
+  ✓ 5 identical deliveries → 1 ledger row → 1 QuickBooks RefundReceipt
+  ✓ enforced by UNIQUE(refund_id) in the database, not by an if-statement
+
+──────────────────────────────────────────────────────────────────────────────
+SCENE 2 — Forged webhook
+Your endpoint is public. Anything that can POST to it can invent a refund.
+
+{"component": "webhook", "provider": "stripe", "event": "webhook_signature_invalid", "level": "warning", "timestamp": "2026-09-04T06:19:52.567967Z"}
+  ✓ wrong signature → HTTP 401, rejected before any database write
+
+──────────────────────────────────────────────────────────────────────────────
+SCENE 3 — Partial refunds, then an over-refund
+Two partial refunds against one order, then one that would over-refund it.
+
+  re_2001a  30.00  portion=0.300000
+  re_2001b  40.00  portion=0.400000
+  ✓ 70.00 of 100.00 refunded as two QBO RefundReceipts, each with the correct portion
+{"component": "reconcile", "refund_id": "stripe:re_2001c", "error": "refund 50.0000 + already_refunded 70.0000 exceeds original total 100.0000", "event": "refund_over_refund", "level": "error", "timestamp": "2026-09-04T06:19:52.584370Z"}
+  re_2001c  50.00  status=over_refund  error=refund 50.0000 + already_refunded 70.0000 exceeds original total 100.0000
+  ✗ third refund of 50.00 rejected: refund 50.0000 + already_refunded 70.0000 exceeds original total 100.0000
+  ✓ over-refund never reaches QuickBooks; it is held on the ledger for a human
+
+──────────────────────────────────────────────────────────────────────────────
+SCENE 4 — Multi-currency refund with FX rate stamped at refund time
+The original sale was booked at one FX rate; the refund happens later at a different rate.
+
+  refund 100.00 EUR, booked at 1.00, refunded at fx_rate=1.15000000
+  portion=0.500000 base_amount=115.00 fx_gain_loss=15.00 original_txn=ch_3001
+  ✓ FX rate recorded on the refund itself — refunds computed from it never drift
+  ✓ realized FX gain/loss (15.00) posted as its own line, not netted into revenue
+
+──────────────────────────────────────────────────────────────────────────────
+SCENE 5 — Unmatched refund
+A refund event references an order we never booked. Guessing here is how books go quietly wrong.
+
+{"component": "reconcile", "refund_id": "stripe:re_orphan", "error": "no original transaction found for stripe:ch_never_seen", "event": "refund_unmatched", "level": "warning", "timestamp": "2026-09-04T06:19:52.592901Z"}
+  refund_id=re_orphan  original_txn=ch_never_seen  status=unmatched
+  ✗ held: no original transaction found for stripe:ch_never_seen
+  ✓ unmatched refund is held, not silently dropped or guessed at
+
+──────────────────────────────────────────────────────────────────────────────
+SCENE 6 — QuickBooks outage → dead letter → replay
+An outage must not silently drop a refund.
+
+{"component": "reconcile", "refund_id": "stripe:re_4001", "attempts": 1, "error": "QBO returned 503 Service Unavailable", "event": "refund_sync_failed", "level": "error", "timestamp": "2026-09-04T06:19:52.598764Z"}
+{"component": "reconcile", "refund_id": "stripe:re_4001", "attempts": 2, "error": "QBO returned 503 Service Unavailable", "event": "refund_sync_failed", "level": "error", "timestamp": "2026-09-04T06:19:52.602155Z"}
+{"component": "reconcile", "refund_id": "stripe:re_4001", "attempts": 3, "error": "QBO returned 503 Service Unavailable", "event": "refund_sync_failed", "level": "error", "timestamp": "2026-09-04T06:19:52.603958Z"}
+{"component": "reconcile", "refund_id": "stripe:re_4001", "attempts": 4, "error": "QBO returned 503 Service Unavailable", "event": "refund_sync_failed", "level": "error", "timestamp": "2026-09-04T06:19:52.606111Z"}
+{"component": "reconcile", "refund_id": "stripe:re_4001", "attempts": 5, "error": "QBO returned 503 Service Unavailable", "event": "refund_sync_failed", "level": "error", "timestamp": "2026-09-04T06:19:52.617035Z"}
+{"component": "reconcile", "refund_id": "stripe:re_4001", "attempts": 6, "error": "QBO returned 503 Service Unavailable", "event": "refund_sync_failed", "level": "error", "timestamp": "2026-09-04T06:19:52.618737Z"}
+  attempts=6  status=failed  error=QBO returned 503 Service Unavailable
+  ✗ dead-lettered after 6 attempts: QBO returned 503 Service Unavailable
+  POST /reconcile/replay/stripe:re_4001 -> 200
+  status=synced  dest_id=qbo-refund-5
+  ✓ replay after the outage clears re-runs the same refund_id and it syncs — never a duplicate
+
+──────────────────────────────────────────────────────────────────────────────
+SCENE 7 — Reconciliation status endpoint
+The owner-facing snapshot of what's healthy and what needs a human.
+
+  {"last_sync": "2026-09-04T06:19:52.623418", "synced_today": 5, "pending": 0, "failed": 0, "unmatched": 1, "over_refund": 1}
+  ✓ GET /reconcile/status returns synced/pending/failed/unmatched/over_refund counts
+
+──────────────────────────────────────────────────────────────────────────────
+All scenes passed. 5 refund receipts posted to (fake) QuickBooks.
+
